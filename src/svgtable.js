@@ -1,4 +1,6 @@
-﻿class SVGTable {
+﻿// https://github.com/analyzer2004/svgtable
+// Copyright 2020 Eric Lo
+class SVGTable {
     constructor(svg, container) {
         this._svg = svg;
         this._container = container || svg;
