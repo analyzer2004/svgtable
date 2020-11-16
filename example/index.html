@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title></title>
+    <style>
+        body {
+            font-size: 12pt;
+            margin-top: 25px;
+        }
+
+        body, svg text {
+            cursor: default;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        input[type="radio"], input[type="color"], input[type="checkbox"] {
+            vertical-align: baseline;
+        }
+    </style>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="data.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="../src/svgtable.js"></script>
+    <script src="../src/scrollbar.js"></script>
+</head>
+<body>
+    <form id="options" style="margin-left: 25px" oninput="refresh();">
+        Field:
+        <select name="field">
+            <option value="newcases">newcases</option>
+            <option value="newdeaths">newdeaths</option>
+            <option value="cases">cases</option>
+            <option value="deaths">deaths</option>
+        </select>
+        <br>
+        Sticky Columns: <input name="cols" type="range" min="0" max="3" value="1" style="width: 50px">
+        <span style="margin-left: 10px">Rows: <input name="rows" type="range" min="0" max="4" value="1" style="width: 50px"></span>
+        <span style="margin-left: 10px">
+            <label><input type="checkbox" name="border">Border</label>
+        </span><br>
+        Highlight:
+        <input name="highlight" id="none" type="radio" value="none" group="h"><label for="none">None</label>
+        <input name="highlight" id="cross" type="radio" value="cross" group="h" checked><label for="cross">Cross</label>
+        <input name="highlight" id="cell" type="radio" value="cell" group="h"><label for="cell">Cell</label>
+        <br>
+        <div style="margin-top:5px">
+            Header: <input type="color" name="header" value="#dddddd" style="height:16px">
+            <span style="margin-left: 10px">Fixed Cell: <input type="color" name="fixed" value="#eeeeee" style="height:16px"></span>
+            <span style="margin-left: 10px">Cell: <input type="color" name="cellColor" value="#ffffff" style="height:16px"></span>
+            <span style="margin-left: 10px">Border: <input type="color" name="borderColor" value="#aaaaaa" style="height:16px"></span>
+            <span style="margin-left: 10px">Text: <input type="color" name="text" value="#000000" style="height:16px"></span>
+            <span style="margin-left: 10px">Highlight: <input type="color" name="highlightColor" value="#fff3b0" style="height:16px"></span>
+        </div>
+    </form>
+    <script>
+        var t;
+        const refresh = () => {
+            clearTimeout(t);
+            t = setTimeout(() => {
+                const field = options.field.value;
+                getStates(field).then(data => {
+                    const style = {
+                        border: options.border.checked,
+                        borderColor: options.borderColor.value,
+                        textColor: options.text.value,
+                        background: options.cellColor.value,
+                        headerBackground: options.header.value,
+                        fixedBackground: options.fixed.value,
+                        highlight: options.highlight.value,
+                        highlightBackground: options.highlightColor.value
+                    };
+                    render(data, field, +options.cols.value, +options.rows.value, style);
+                });
+            }, 50);
+        }
+
+        refresh();
+    </script>
+
+</body>
+</html>
