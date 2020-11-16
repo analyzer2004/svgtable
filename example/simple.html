@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title></title>
+    <style>
+        body {
+            font-size: 12pt;
+        }
+
+        svg text {
+            cursor: default;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+    </style>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="../src/svgtable.js"></script>
+    <script src="../src/scrollbar.js"></script>
+    <script src="data.js"></script>
+
+
+    <script>
+        getStates("newcases").then(data => {
+            const svg = d3.select("body")
+                .append("svg")
+                .attr("width", 1024)
+                .attr("height", 768);
+
+            const table = new SVGTable(svg)
+                .extent([[25, 25], [800, 300]])
+                .fixedColumns(1)
+                .fixedRows(1)                
+                .defaultNumberFormat(",.0d")
+                .data(data)
+                .render();
+
+        });
+    </script>
+</head>
+<body>
+</body>
+</html>

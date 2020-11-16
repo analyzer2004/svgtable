@@ -282,20 +282,23 @@ class SVGTable {
             .on("mouseover", mouseover)
             .on("mouseleave", mouseleave);
 
-        // fixed columns on the left
-        const fixedCell = this._addRows(
-            body.append("g"),
-            "row",
-            () => rows.map((r, i) => this._columns.slice(0, this._fixedColumns).map((c, j) => ({
-                origin: r, // for sort to get the index of data
-                rowIndex: i + this._fixedRows,
-                columnIndex: j,
-                value: r[c.name]
-            }))),
-            d => d,
-            (d, i) => `translate(0,${i * this._cellHeight})`,
-            (d, i) => `translate(${this._columns[i].tx},0)`,
-            g => this._addCell(g, style.fixedBackground, d => d.value, 0));
+        var fixedCell;
+        if (this._fixedColumns) {
+            // fixed columns on the left
+            fixedCell = this._addRows(
+                body.append("g"),
+                "row",
+                () => rows.map((r, i) => this._columns.slice(0, this._fixedColumns).map((c, j) => ({
+                    origin: r, // for sort to get the index of data
+                    rowIndex: i + this._fixedRows,
+                    columnIndex: j,
+                    value: r[c.name]
+                }))),
+                d => d,
+                (d, i) => `translate(0,${i * this._cellHeight})`,
+                (d, i) => `translate(${this._columns[i].tx},0)`,
+                g => this._addCell(g, style.fixedBackground, d => d.value, 0));
+        }
 
         this._body = body;
         this._dataArea = dataArea;
@@ -328,7 +331,7 @@ class SVGTable {
                 .attr("fill", d => d);
             if (!that._style.border) r.attr("stroke", d => d);
 
-            fixedCell.select("text").attr("font-weight", cell => cell.rowIndex === d.rowIndex ? "bold" : "");
+            if (fixedCell) fixedCell.select("text").attr("font-weight", cell => cell.rowIndex === d.rowIndex ? "bold" : "");
             that._dataHeader.selectAll("text").attr("font-weight", cell => cell.columnIndex === d.columnIndex ? "bold" : "");
 
             if (that._onhighlight) {
@@ -348,7 +351,7 @@ class SVGTable {
             const r = cell.select("rect").attr("fill", style.background);
             if (!that._style.border) r.attr("stroke", style.background);
 
-            fixedCell.select("text").attr("font-weight", "");
+            if (fixedCell) fixedCell.select("text").attr("font-weight", "");
             that._dataHeader.selectAll("text").attr("font-weight", "");
         }
     }
@@ -373,18 +376,20 @@ class SVGTable {
             .on("click", (e, d) => this._sort(d));
 
         // fixed data cells for top-left part
-        this._addRows(
-            header,
-            "fixedRow",
-            () => rows.map((r, i) => this._columns.slice(0, this._fixedColumns).map((c, j) => ({
-                rowIndex: i,
-                columnIndex: j,
-                value: r[c.name]
-            }))),
-            d => d,
-            (d, i) => `translate(0,${(i + 1) * this._cellHeight})`,
-            (d, i) => `translate(${this._columns[i].tx},0)`,
-            g => this._addCell(g, style.fixedBackground, d => d.value, 0));
+        if (this._fixedColumns) {
+            this._addRows(
+                header,
+                "fixedRow",
+                () => rows.map((r, i) => this._columns.slice(0, this._fixedColumns).map((c, j) => ({
+                    rowIndex: i,
+                    columnIndex: j,
+                    value: r[c.name]
+                }))),
+                d => d,
+                (d, i) => `translate(0,${(i + 1) * this._cellHeight})`,
+                (d, i) => `translate(${this._columns[i].tx},0)`,
+                g => this._addCell(g, style.fixedBackground, d => d.value, 0));
+        }
 
         // the container of the rest of the header cells, its content is clipped by headerClip
         const headerBox = header.append("g")
@@ -439,8 +444,8 @@ class SVGTable {
             .transition()
             .duration((d, i) => i * f)
             .ease(d3.easeBounce)
-            .attr("transform", d => {                
-                const i = Array.isArray(d) ? d.length ? sorted.indexOf(d[0].origin) : 0 : sorted.indexOf(d);
+            .attr("transform", d => {                                
+                const i = Array.isArray(d) ? sorted.indexOf(d[0].origin) : sorted.indexOf(d);
                 return `translate(0,${i * this._cellHeight})`;
             });
 
