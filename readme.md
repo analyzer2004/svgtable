@@ -2,7 +2,7 @@
 
 An SVG Table with sticky columns, rows and many other features.
 
-**For a live demo, see [SVG Table with sticky columns and rows](https://).**
+**For a live demo, see [SVG Table with sticky columns and rows](https://observablehq.com/@analyzer2004/svgtable).**
 
 <img src="https://github.com/analyzer2004/svgtable/blob/master/images/cover.png" width="768">
 
