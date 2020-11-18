@@ -1,6 +1,4 @@
-﻿// https://github.com/analyzer2004/svgtable
-// Copyright 2020 Eric Lo
-class Scrollbar {
+﻿class Scrollbar {
     constructor(svg) {
         this._svg = svg;
         this._box = null;
@@ -70,9 +68,9 @@ class Scrollbar {
             .attr("transform", `translate(${box.x},${box.y})`);
 
         this._bar = g.append("rect")
-                .attr("width", this._sliderWidth)
-                .attr("height", box.length)
-                .attr("fill", "#eee");
+            .attr("width", this._sliderWidth)
+            .attr("height", box.length)
+            .attr("fill", "#eee");
 
         this._slider = g.append("rect")
             .attr("x", 0).attr("y", 0)
@@ -88,9 +86,9 @@ class Scrollbar {
             .attr("transform", `translate(${box.x},${box.y})`);
 
         this._bar = g.append("rect")
-                .attr("width", box.length)
-                .attr("height", this._sliderWidth)
-                .attr("fill", "#eee");
+            .attr("width", box.length)
+            .attr("height", this._sliderWidth)
+            .attr("fill", "#eee");
 
         this._slider = g.append("rect")
             .attr("x", 0).attr("y", 0)
@@ -122,27 +120,30 @@ class Scrollbar {
                         e.stopPropagation();
                     }
                     else if (e.srcElement === this._bar.node()) {
+                        const cbox = this._bar.node().getClientRects()[0];
+
                         var a, b, pos;
                         if (this._vertical) {
-                            a = pos = +this._slider.attr("y");
-                            b = p[1] - this._box.y;
+                            a = pos = +this._slider.attr("y");                            
+                            b = p[1] - cbox.y;
                         }
                         else {
                             a = pos = +this._slider.attr("x");
-                            b = p[0] - this._box.x;
+                            b = p[0] - cbox.x;
                         }
+
                         const intr = (b - a) / 4;
-                        const steps = [];                        
-                        for (var i = 0; i < 3; i++) {                               
+                        const steps = [];
+                        for (var i = 0; i < 3; i++) {
                             pos += intr;
-                            steps.push(pos);                            
-                        }   
-                        
+                            steps.push(pos);
+                        }
+
                         if (b + this._sliderLength > this._box.length)
                             steps.push(this._box.length - this._sliderLength);
                         else
                             steps.push(b);
-                        
+
                         this._sliderSteps = steps.reverse();
                         this._sliderTimeout = 200;
                         this._sliderTimer = setTimeout(() => this._slide(), this._sliderTimeout);
@@ -159,7 +160,7 @@ class Scrollbar {
                 }
 
                 this._grabbing = false;
-                this._slider.attr("fill", "#ccc");                
+                this._slider.attr("fill", "#ccc");
             })
             .on(`mousemove.${namespace}`, e => {
                 const box = this._box;
@@ -197,6 +198,6 @@ class Scrollbar {
             this._sliderTimer = setTimeout(() => this._slide(), this._sliderTimeout);
         }
         else
-            this._sliderTimer = null;        
+            this._sliderTimer = null;
     }
 }
