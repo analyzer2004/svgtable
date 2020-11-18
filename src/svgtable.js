@@ -4,11 +4,12 @@ class SVGTable {
     constructor(svg, container) {
         this._svg = svg;
         this._container = container || svg;
-        this._g = this._container.append("g");
+        this._g = null;
 
         this._defaultColumnWidth = 100;
         this._cellHeight = 24;
         this._cellPadding = 10;
+        this._cellPaddingTop = 0;
         this._fixedColumns = 0;
         this._fixedRows = 0;
 
@@ -26,12 +27,14 @@ class SVGTable {
         this._fixedHeight = 0;
 
         this._data = null;
+        this._dataIsArray = false;
         this._columns = null;
         this._defaultNumberFormat = "$,.2f";
 
         this._scrollbar = {
             horizontal: null,
-            vertical: null
+            vertical: null,
+            visible: [true, true]
         };
 
         this._style = {
@@ -53,8 +56,10 @@ class SVGTable {
 
         this._focus = null;
         this._onhighlight = null;
+        this._onclick = null;
+        this._oncontextmenu = null;
 
-        this._uniqueId = new String(Date.now() * Math.random()).replace(".", "");        
+        this._uniqueId = new String(Date.now() * Math.random()).replace(".", "");
     }
 
     defaultColumnWidth(_) {
@@ -67,6 +72,10 @@ class SVGTable {
 
     cellPadding(_) {
         return arguments.length ? (this._cellPadding = +_, this) : this._cellPadding;
+    }
+
+    cellPaddingTop(_) {
+        return arguments.length ? (this._cellPaddingTop = +_, this) : this._cellPaddingTop;
     }
 
     fixedColumns(_) {
@@ -114,11 +123,20 @@ class SVGTable {
         return arguments.length ? (this._onhighlight = _, this) : this._onhighlight;
     }
 
+    onclick(_) {
+        return arguments.length ? (this._onclick = _, this) : this._onclick;
+    }
+
+    oncontextmenu(_) {
+        return arguments.length ? (this._oncontextmenu = _, this) : this._oncontextmenu;
+    }
+
     render() {
         if (!this._validate()) {
             // error
         }
         else {
+            this._g = this._container.append("g");
             this._processColumns();
             this._prepare();
 
@@ -147,18 +165,25 @@ class SVGTable {
     }
 
     _prepare() {
-        this._fixedHeight = this._cellHeight * this._fixedRows + this._cellHeight;        
+        this._fixedHeight = this._cellHeight * this._fixedRows + this._cellHeight;
 
         const w = this._sumWidth();
         const h = this._data.length * this._cellHeight;
 
-        if (w < this._width) this._width = w;
-        if (h < this._height) this._height = h;
+        if (w + this._sliderWidth < this._width) {
+            this._width = w + this._sliderWidth;
+            this._scrollbar.visible[0] = false;
+        }
+
+        if (h + this._sliderWidth + this._cellHeight < this._height) {
+            this._height = h + this._sliderWidth + this._cellHeight;
+            this._scrollbar.visible[1] = false;
+        }
 
         this._width -= this._sliderWidth;
         this._height -= this._sliderWidth;
     }
-    
+
     _sumWidth(n) {
         // n === 0 : do not calculate, usually it is _fixedColumns = 0
         if (n === 0)
@@ -178,7 +203,7 @@ class SVGTable {
             const keys = this._data.columns ? this._data.columns : Object.keys(this._data[0]);
             let x = 0;
             this._columns = keys.map(c => {
-                const isNumber = typeof this._data[0][c] === "number";                
+                const isNumber = typeof this._data[0][c] === "number";
                 const column = {
                     name: c,
                     isNumber: isNumber,
@@ -194,8 +219,8 @@ class SVGTable {
         }
         else {
             let x = 0;
-            this._columns.forEach(column => {                
-                column.width = column.width || this._defaultColumnWidth;                
+            this._columns.forEach(column => {
+                column.width = column.width || this._defaultColumnWidth;
                 column.x = x;
                 column.tx = x;
                 x += column.width;
@@ -208,7 +233,11 @@ class SVGTable {
             c.tx = c.x - this._fixedWidth; // x for translate
         }
 
-        this._columns.resetOrder = (except) => this._columns.forEach(c => { if (except && c !== except || !except) c.order = 0; }); 
+        if (this._data.length > 0 && this._data[0].length > 0) {
+            this._dataIsArray = Array.isArray(this._data[0]);
+        }
+
+        this._columns.resetOrder = (except) => this._columns.forEach(c => { if (except && c !== except || !except) c.order = 0; });
     }
 
     _createClipPaths() {
@@ -260,25 +289,27 @@ class SVGTable {
         // container of the moveable part of the body
         const dataArea = body.append("g")
             .attr("transform", `translate(${this._fixedWidth},0)`);
-            
 
         const rows = this._data.slice(this._fixedRows);
+        //if (this._dataIsArray) rows.forEach(r => r[0].origin = r);
         // moveable part of the body, x is controlled by horizontal scrollbar
         const cell = this._addRows(
             dataArea,
             "row",
             () => rows,
             (d, i) => this._columns.slice(this._fixedColumns).map((c, j) => {
+                const cIndex = j + this._fixedColumns;
                 return {
                     rowIndex: i + this._fixedRows,
-                    columnIndex: j + this._fixedColumns,
-                    value: d[c.name]
+                    columnIndex: cIndex,
+                    value: this._dataIsArray ? d[cIndex] : d[c.name]
                 }
             }),
             (d, i) => `translate(0,${i * this._cellHeight})`,
             (d, i) => `translate(${this._columns[i + this._fixedColumns].tx},0)`,
             g => this._addCell(g, style.background, d => d.value, this._fixedColumns))
             .on("click", click)
+            .on("contextmenu", contextmenu)
             .on("mouseover", mouseover)
             .on("mouseleave", mouseleave);
 
@@ -292,7 +323,7 @@ class SVGTable {
                     origin: r, // for sort to get the index of data
                     rowIndex: i + this._fixedRows,
                     columnIndex: j,
-                    value: r[c.name]
+                    value: this._dataIsArray ? r[j] : r[c.name]
                 }))),
                 d => d,
                 (d, i) => `translate(0,${i * this._cellHeight})`,
@@ -309,7 +340,7 @@ class SVGTable {
 
         d3.select("body").on(`keydown.eric.svgtable.${this._uniqueId}`, keypress);
 
-        function keypress(e) {                 
+        function keypress(e) {
             if (e.key === "Escape") that._focus = null;
         }
 
@@ -319,8 +350,22 @@ class SVGTable {
                 mouseover(e, d);
                 that._focus = d;
             }
-            else 
+            else
                 that._focus = null;
+
+            if (that._onclick) that._onclick(e, d);
+        }
+
+        function contextmenu(e, d) {
+            if (that._oncontextmenu) {
+                if (that._focus !== d) {
+                    that._focus = null;
+                    mouseover(e, d);
+                    that._focus = d;
+                    that._oncontextmenu(e, d);
+                }
+                return false;
+            }
         }
 
         function mouseover(e, d) {
@@ -336,7 +381,7 @@ class SVGTable {
 
             if (that._onhighlight) {
                 const c = that._columns[d.columnIndex];
-                that._onhighlight({
+                that._onhighlight(e, {
                     cell: d,
                     column: c,
                     getRow: () => that.getRowData(d.rowIndex),
@@ -383,7 +428,7 @@ class SVGTable {
                 () => rows.map((r, i) => this._columns.slice(0, this._fixedColumns).map((c, j) => ({
                     rowIndex: i,
                     columnIndex: j,
-                    value: r[c.name]
+                    value: this._dataIsArray ? r[j] : r[c.name]
                 }))),
                 d => d,
                 (d, i) => `translate(0,${(i + 1) * this._cellHeight})`,
@@ -404,7 +449,7 @@ class SVGTable {
                 return d;
             }))
             .join("g")
-            .attr("class", "column")            
+            .attr("class", "column")
             .attr("transform", (d, i) => `translate(${this._columns[i + this._fixedColumns].tx},0)`)
             .call(g => this._addCell(g, style.headerBackground, d => d.name, this._fixedColumns, true))
             .on("click", (e, d) => this._sort(d));
@@ -414,10 +459,11 @@ class SVGTable {
             "fixedRow",
             () => rows,
             (d, i) => this._columns.slice(this._fixedColumns).map((c, j) => {
+                const cIndex = j + this._fixedColumns;
                 return {
                     rowIndex: i,
-                    columnIndex: j + this._fixedColumns,
-                    value: d[c.name]
+                    columnIndex: cIndex,
+                    value: this._dataIsArray ? d[cIndex] : d[c.name]
                 }
             }),
             (d, i) => `translate(0,${(i + 1) * this._cellHeight})`,
@@ -444,8 +490,8 @@ class SVGTable {
             .transition()
             .duration((d, i) => i * f)
             .ease(d3.easeBounce)
-            .attr("transform", d => {                                
-                const i = Array.isArray(d) ? sorted.indexOf(d[0].origin) : sorted.indexOf(d);
+            .attr("transform", d => {
+                const i = Array.isArray(d) && d[0].origin !== undefined ? sorted.indexOf(d[0].origin) : sorted.indexOf(d);
                 return `translate(0,${i * this._cellHeight})`;
             });
 
@@ -465,21 +511,24 @@ class SVGTable {
         else
             column.order = 1;
 
+        const index = this._dataIsArray ? this._columns.indexOf(column) : column.name;
+
         if (column.isNumber) {
             if (column.order === 0)
                 sorted.sort((a, b) => -1);
             else if (column.order === 1)
-                sorted.sort((a, b) => a[column.name] - b[column.name]);
+                sorted.sort((a, b) => a[index] - b[index]);
             else
-                sorted.sort((a, b) => b[column.name] - a[column.name]);
+                sorted.sort((a, b) => b[index] - a[index]);
+
         }
         else {
             if (column.order === 0)
                 sorted.sort((a, b) => -1);
             else if (column.order === 1)
-                sorted.sort((a, b) => a[column.name].localeCompare(b[column.name]));
+                sorted.sort((a, b) => a[index].localeCompare(b[index]));
             else
-                sorted.sort((a, b) => b[column.name].localeCompare(a[column.name]));
+                sorted.sort((a, b) => b[index].localeCompare(a[index]));
         }
 
         return sorted;
@@ -507,14 +556,15 @@ class SVGTable {
     // base: number of fixed cells on the same row
     _addCell(g, fill, tf, base, isHeader) {
         const style = this._style;
-        
+
         const rect = g.append("rect")
             .attr("width", (d, i) => this._columns[base + i].width)
             .attr("height", this._cellHeight)
             .attr("fill", fill)
+            .attr("stroke-width", 0.1)
             .attr("stroke", style.border ? style.borderColor : fill);
 
-        const t = g.append("text").attr("dy", "1em").attr("fill", style.textColor);
+        const t = g.append("text").attr("y", "1em").attr("dy", this._cellPaddingTop).attr("fill", style.textColor);
 
         if (isHeader) {
             if (!style.border)
@@ -532,7 +582,8 @@ class SVGTable {
                 .text(d => tf(d));
         }
         else {
-            t.attr("dx", (d, i) => this._columns[base + i].isNumber ? -this._cellPadding : this._cellPadding)
+            t.attr("class", "value")
+                .attr("dx", (d, i) => this._columns[base + i].isNumber ? -this._cellPadding : this._cellPadding)
                 .attr("clip-path", (d, i) => this._clipPath(`cellClip${base + i}`))
                 .attr("transform", (d, i) => `translate(${this._columns[base + i].isNumber ? this._columns[base + i].width : 0},0)`)
                 .attr("text-anchor", (d, i) => this._columns[base + i].isNumber ? "end" : "start")
@@ -552,8 +603,8 @@ class SVGTable {
     }
 
     _addScrollbars() {
-        this._addVScroll();
-        this._addHScroll();
+        if (this._scrollbar.visible[1]) this._addVScroll();
+        if (this._scrollbar.visible[0]) this._addHScroll();
     }
 
     _addVScroll() {
@@ -594,18 +645,20 @@ class SVGTable {
     }
 
     _scroll(e) {
-        const dy = e.wheelDeltaY ? e.wheelDeltaY : e.wheelDelta ? e.wheelDelta : -1;
-        if (dy === -1) return;
+        if (this._scrollbar.vertical) {
+            const dy = e.wheelDeltaY ? e.wheelDeltaY : e.wheelDelta ? e.wheelDelta : -1;
+            if (dy === -1) return;
 
-        const cy = +this._body.attr("transform").split(",")[1].replace(")", "");
-        var y = cy + dy;
-        if (y < this._minY)
-            y = this._minY;
-        else if (y > this._fixedHeight)
-            y = this._fixedHeight;
+            const cy = +this._body.attr("transform").split(",")[1].replace(")", "");
+            var y = cy + dy;
+            if (y < this._minY)
+                y = this._minY;
+            else if (y > this._fixedHeight)
+                y = this._fixedHeight;
 
-        this._body.attr("transform", `translate(0,${y})`);
-        this._scrollbar.vertical.moveSlider(-(y - this._fixedHeight) / this._yf);
-        e.preventDefault();
+            this._body.attr("transform", `translate(0,${y})`);
+            this._scrollbar.vertical.moveSlider(-(y - this._fixedHeight) / this._yf);
+            e.preventDefault();
+        }
     }
 }

@@ -14,7 +14,7 @@
         .defaultNumberFormat(",.0d")
         .style(style)
         .data(data)
-        .onhighlight(c => {
+        .onhighlight((e, c) => {
             chart(c);
             map(c);
         });
