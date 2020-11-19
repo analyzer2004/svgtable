@@ -25,6 +25,8 @@ An SVG Table with sticky columns, rows and many other features.
   * style.**fixedBackground** - the background color of fixed (sticky) cells
   * style.**highlight** - the style of hover effect: ***none, cell or cross***, default is cross
   * style.**highlightBackground** - the background color of highlight
+* **heatmap(enabled)** - Enables of disables heatmap map and returns this table
+* **heatmapPalette(palette)** - Sets the color palette of heatmap and returns this table. The palette can be an array of colors or a color interpolator.
 * **columns(columns)** - Overrides the default settings of columns and returns this table. The columns are specified as an array of column object:
   * column.**name** - the name of column
   * column.**isNumber** - specify if the column is a numeric column
@@ -32,16 +34,24 @@ An SVG Table with sticky columns, rows and many other features.
   * column.**width** - the width of the column
 * **data(data)** - Sets the data and returns this table
 * **render()** - Renders the table using the data specified by data() and returns this table
-* **getRowData(index)** - Returns values for all the cells in the specified row.
-* **getColumnData(index)** - Returns values for all the cells in the specified column.
-* **onhighlight(context)** - Occurs when the mouse pointer enters a cell. The context object contains the cell context:
+* **getRowData(index)** - Returns values for all the cells in the specified row
+* **getColumnData(index)** - Returns values for all the cells in the specified column
+* **onhighlight(e, context)** - Occurs when the mouse pointer enters a cell. The context object contains the cell context:
   * context.**cell**: the highlighted cell object
     * cell.**rowIndex**: the row index of the cell
-    * cell.**columnIndex**: the column index of the cell
+    * cell.**column**: the column of the cell
+    * ~~cell.**columnIndex**: the column index of the cell~~ is now cell.**column.index**
     * cell.**value**: the value of the cell
   * context.**column**: the column object of the cell
   * context.**getRow()**: returns values for all the cells of the column based on highlighted cell
-  * context.**getColumn()**: returns value of all the cells of the row based on highlighted cell`
+  * context.**getColumn()**: returns value of all the cells of the row based on highlighted cell
+* **onclick(e, cell)** - Occurs when clicks a cell.
+* **oncontextmenu(e, cell)** - Occurs when right clicks a cell.
+* ***ToDo***
+  * h-scroll by trackpad / mouse wheel
+  * reorder columns by drag-n-drop
+  * auto columnWidht and cellHeight
+  * pagination
 
 ## Scrollbar
 The Scrollbar is an accessory of the SVGTable, it can also be used independently as a general-purpose scrollbar.

@@ -1,6 +1,4 @@
-﻿// https://github.com/analyzer2004/svgtable
-// Copyright 2020 Eric Lo
-class Scrollbar {
+﻿class Scrollbar {
     constructor(svg) {
         this._svg = svg;
         this._box = null;

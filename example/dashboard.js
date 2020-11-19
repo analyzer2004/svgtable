@@ -13,6 +13,8 @@
         .defaultColumnWidth(100)
         .defaultNumberFormat(",.0d")
         .style(style)
+        .heatmap(true)
+        .heatmapPalette(d3.interpolateBuPu)
         .data(data)
         .onhighlight((e, c) => {
             chart(c);

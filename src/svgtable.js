@@ -31,6 +31,10 @@ class SVGTable {
         this._columns = null;
         this._defaultNumberFormat = "$,.2f";
 
+        this._heatmap = false;
+        this._heatmapPalette = null; // interpolator or array of colors
+        this._heatmapColor = null;
+
         this._scrollbar = {
             horizontal: null,
             vertical: null,
@@ -100,6 +104,29 @@ class SVGTable {
         return arguments.length ? (this._style = Object.assign(this._style, _), this) : this._style;
     }
 
+    heatmap(_) {
+        if (arguments.length) {
+            this._heatmap = _;
+            if (this._table) this._updateHeatmap();
+            return this;
+        }
+        else
+            return this._heatmap;
+    }
+
+    heatmapPalette(_) {
+        if (arguments.length) {
+            this._heatmapPalette = _;
+            if (this._table) {
+                this._processHeatmap();
+                if (this._heatmap) this._updateHeatmap();
+            }
+            return this;
+        }
+        else
+            return this._heatmapPalette;
+    }
+
     data(_) {
         return arguments.length ? (this._data = _, this) : this._data;
     }
@@ -143,6 +170,7 @@ class SVGTable {
             this._calcConstrains();
             this._createClipPaths();
 
+            this._processHeatmap();
             this._createTable();
             this._renderBody(this._table);
             this._renderHeader(this._table);
@@ -202,7 +230,7 @@ class SVGTable {
             // CSV or JSON
             const keys = this._data.columns ? this._data.columns : Object.keys(this._data[0]);
             let x = 0;
-            this._columns = keys.map(c => {
+            this._columns = keys.map((c, i) => {
                 const isNumber = typeof this._data[0][c] === "number";
                 const column = {
                     name: c,
@@ -211,6 +239,7 @@ class SVGTable {
                     order: 0, // 0: none, 1: ascending, 2: descending
                     x: x,
                     tx: x,
+                    index: i,
                     width: this._defaultColumnWidth
                 }
                 x += this._defaultColumnWidth;
@@ -219,10 +248,11 @@ class SVGTable {
         }
         else {
             let x = 0;
-            this._columns.forEach(column => {
+            this._columns.forEach((column, i) => {
                 column.width = column.width || this._defaultColumnWidth;
                 column.x = x;
                 column.tx = x;
+                column.index = i;
                 x += column.width;
             });
         }
@@ -239,6 +269,54 @@ class SVGTable {
 
         this._columns.resetOrder = (except) => this._columns.forEach(c => { if (except && c !== except || !except) c.order = 0; });
     }
+
+    _processHeatmap() {
+        if (!this._heatmapPalette) return;
+
+        const all = this._data.slice(this._fixedRows).flatMap(d => {
+            const r = this._dataIsArray ?
+                d.slice(this._fixedColumns) :
+                Object.keys(d).map(k => d[k]).slice(this._fixedColumns);
+
+            const values = [];
+            for (let i = 0; i < r.length; i++) {
+                const col = this._columns[i + this._fixedColumns];
+                if (col.isNumber) values.push(this._dataIsArray ? r[i] : r[col.name]);
+            }
+            return r;
+        })
+
+        const ext = d3.extent(all);
+        const p = this._heatmapPalette;
+        if (Array.isArray(p)) {
+            // Palette is an array
+            this._heatmapColor = d3.scaleSequential()
+                .domain(this._series(ext[0], ext[1], p.length))
+                .range(p);
+        }
+        else if (typeof p === "function") {
+            // Palette is a color interpolator
+            this._heatmapColor = d3.scaleSequential(p)
+                .domain(ext);
+        }
+    }
+
+    _series(min, max, num) {
+        const n = num - 1, s = [min], intrv = max / n;
+        var i = min;
+        while (i < max && s.length < num) {
+            i += intrv;
+            s.push(i);
+        }
+
+        if (s.length < num)
+            s.push(max);
+        else
+            s[s.length - 1] = max;
+
+        return s;
+    }
+
 
     _createClipPaths() {
         const addClipPath = (id, width, height, x, y) => {
@@ -298,16 +376,15 @@ class SVGTable {
             "row",
             () => rows,
             (d, i) => this._columns.slice(this._fixedColumns).map((c, j) => {
-                const cIndex = j + this._fixedColumns;
                 return {
                     rowIndex: i + this._fixedRows,
-                    columnIndex: cIndex,
-                    value: this._dataIsArray ? d[cIndex] : d[c.name]
+                    column: c,
+                    value: this._dataIsArray ? d[c.index] : d[c.name]
                 }
             }),
             (d, i) => `translate(0,${i * this._cellHeight})`,
-            (d, i) => `translate(${this._columns[i + this._fixedColumns].tx},0)`,
-            g => this._addCell(g, style.background, d => d.value, this._fixedColumns))
+            d => `translate(${d.column.tx},0)`,
+            g => this._addCell(g, style.background, this._fixedColumns))
             .on("click", click)
             .on("contextmenu", contextmenu)
             .on("mouseover", mouseover)
@@ -322,21 +399,21 @@ class SVGTable {
                 () => rows.map((r, i) => this._columns.slice(0, this._fixedColumns).map((c, j) => ({
                     origin: r, // for sort to get the index of data
                     rowIndex: i + this._fixedRows,
-                    columnIndex: j,
-                    value: this._dataIsArray ? r[j] : r[c.name]
+                    column: c,
+                    value: this._dataIsArray ? r[c.index] : r[c.name]
                 }))),
                 d => d,
                 (d, i) => `translate(0,${i * this._cellHeight})`,
-                (d, i) => `translate(${this._columns[i].tx},0)`,
-                g => this._addCell(g, style.fixedBackground, d => d.value, 0));
+                d => `translate(${d.column.tx},0)`,
+                g => this._addCell(g, style.fixedBackground, 0, false, true));
         }
 
         this._body = body;
         this._dataArea = dataArea;
 
         const test = cross ?
-            (d, cell) => cell.rowIndex === d.rowIndex || cell.columnIndex === d.columnIndex :
-            (d, cell) => cell.rowIndex === d.rowIndex && cell.columnIndex === d.columnIndex;
+            (d, cell) => cell.rowIndex === d.rowIndex || cell.column.index === d.column.index :
+            (d, cell) => cell.rowIndex === d.rowIndex && cell.column.index === d.column.index;
 
         d3.select("body").on(`keydown.eric.svgtable.${this._uniqueId}`, keypress);
 
@@ -372,20 +449,19 @@ class SVGTable {
             if (!highlight || that._focus) return;
 
             const r = cell.select("rect")
-                .datum(cell => test(d, cell) ? style.highlightBackground : style.background)
+                .datum(cell => test(d, cell) ? style.highlightBackground : that._cellColor(cell, style.background, false, false))
                 .attr("fill", d => d);
             if (!that._style.border) r.attr("stroke", d => d);
 
             if (fixedCell) fixedCell.select("text").attr("font-weight", cell => cell.rowIndex === d.rowIndex ? "bold" : "");
-            that._dataHeader.selectAll("text").attr("font-weight", cell => cell.columnIndex === d.columnIndex ? "bold" : "");
+            that._dataHeader.selectAll("text").attr("font-weight", cell => cell.column.index === d.column.index ? "bold" : "");
 
             if (that._onhighlight) {
-                const c = that._columns[d.columnIndex];
                 that._onhighlight(e, {
                     cell: d,
-                    column: c,
+                    column: d.column,
                     getRow: () => that.getRowData(d.rowIndex),
-                    getColumn: () => that.getColumnData(d.columnIndex)
+                    getColumn: () => that.getColumnData(d.column.index)
                 });
             }
         }
@@ -393,11 +469,24 @@ class SVGTable {
         function mouseleave() {
             if (!highlight || that._focus) return;
 
-            const r = cell.select("rect").attr("fill", style.background);
-            if (!that._style.border) r.attr("stroke", style.background);
+            const r = cell.select("rect").attr("fill", d => that._cellColor(d, style.background, false, false));
+            if (!that._style.border) r.attr("stroke", d => that._cellColor(d, style.background, false, false));
 
             if (fixedCell) fixedCell.select("text").attr("font-weight", "");
             that._dataHeader.selectAll("text").attr("font-weight", "");
+        }
+    }
+
+    _updateHeatmap() {
+        const bg = this._style.background;
+        const rects = this._dataArea.selectAll("rect");
+        if (this._heatmap) {
+            rects.attr("fill", d => this._cellColor(d, bg, false, false));
+            if (!this._style.border) rects.attr("stroke", d => this._cellColor(d, bg, false, false));
+        }
+        else {
+            rects.attr("fill", d => bg);
+            if (!this._style.border) rects.attr("stroke", bg);
         }
     }
 
@@ -410,30 +499,30 @@ class SVGTable {
         const header = g.append("g");
         // top-left cells which are always fixed if fixedColumns is specified
         header.selectAll(".column")
-            .data(this._columns.slice(0, this._fixedColumns).map((d, i) => {
-                d.columnIndex = i;
-                return d;
-            }))
+            // Unify the the data structure make it compatible with addCell
+            .data(this._columns.slice(0, this._fixedColumns).map((d, i) => ({
+                column: d
+            })))
             .join("g")
             .attr("class", "column")
-            .attr("transform", (d, i) => `translate(${this._columns[i].tx},0)`)
-            .call(g => this._addCell(g, style.headerBackground, d => d.name, 0, true))
+            .attr("transform", d => `translate(${d.column.tx},0)`)
+            .call(g => this._addCell(g, style.headerBackground, 0, true, true))
             .on("click", (e, d) => this._sort(d));
 
-        // fixed data cells for top-left part
+        // fixed data cells in the fixed columns section
         if (this._fixedColumns) {
             this._addRows(
                 header,
                 "fixedRow",
                 () => rows.map((r, i) => this._columns.slice(0, this._fixedColumns).map((c, j) => ({
                     rowIndex: i,
-                    columnIndex: j,
-                    value: this._dataIsArray ? r[j] : r[c.name]
+                    column: c,
+                    value: this._dataIsArray ? r[c.index] : r[c.name]
                 }))),
                 d => d,
                 (d, i) => `translate(0,${(i + 1) * this._cellHeight})`,
-                (d, i) => `translate(${this._columns[i].tx},0)`,
-                g => this._addCell(g, style.fixedBackground, d => d.value, 0));
+                d => `translate(${d.column.tx},0)`,
+                g => this._addCell(g, style.fixedBackground, 0, false, true));
         }
 
         // the container of the rest of the header cells, its content is clipped by headerClip
@@ -444,14 +533,14 @@ class SVGTable {
         // horizontally moveable part of the header, x is controlled by and synchronized with horizontal scrollbar
         const dataHeader = headerBox.append("g");
         dataHeader.selectAll(".column")
-            .data(this._columns.slice(this._fixedColumns).map((d, i) => {
-                d.columnIndex = i + this._fixedColumns;
-                return d;
-            }))
+            // Unify the the data structure make it compatible with addCell
+            .data(this._columns.slice(this._fixedColumns).map((d, i) => ({
+                column: d
+            })))
             .join("g")
             .attr("class", "column")
-            .attr("transform", (d, i) => `translate(${this._columns[i + this._fixedColumns].tx},0)`)
-            .call(g => this._addCell(g, style.headerBackground, d => d.name, this._fixedColumns, true))
+            .attr("transform", d => `translate(${d.column.tx},0)`)
+            .call(g => this._addCell(g, style.headerBackground, this._fixedColumns, true, true))
             .on("click", (e, d) => this._sort(d));
 
         this._addRows(
@@ -459,16 +548,15 @@ class SVGTable {
             "fixedRow",
             () => rows,
             (d, i) => this._columns.slice(this._fixedColumns).map((c, j) => {
-                const cIndex = j + this._fixedColumns;
                 return {
                     rowIndex: i,
-                    columnIndex: cIndex,
-                    value: this._dataIsArray ? d[cIndex] : d[c.name]
+                    column: c,
+                    value: this._dataIsArray ? d[c.index] : d[c.name]
                 }
             }),
             (d, i) => `translate(0,${(i + 1) * this._cellHeight})`,
-            (d, i) => `translate(${this._columns[i + this._fixedColumns].tx},0)`,
-            g => this._addCell(g, style.fixedBackground, d => d.value, this._fixedColumns)
+            d => `translate(${d.column.tx},0)`,
+            g => this._addCell(g, style.fixedBackground, this._fixedColumns, false, true)
         );
 
         // a fixed line for seperating header and body
@@ -483,8 +571,8 @@ class SVGTable {
         this._dataHeader = dataHeader;
     }
 
-    _sort(column) {
-        const sorted = this._sortData(column);
+    _sort(d) {
+        const sorted = this._sortData(d.column);
         const f = 250 / sorted.length;
         this._table.selectAll(".row")
             .transition()
@@ -496,8 +584,8 @@ class SVGTable {
             });
 
         const cg = this._header.selectAll(".column");
-        cg.select(".asc").attr("fill", d => column === d && column.order === 1 ? "#777" : "#bbb");
-        cg.select(".desc").attr("fill", d => column === d && column.order === 2 ? "#777" : "#bbb");
+        cg.select(".asc").attr("fill", _ => d.column === _.column && d.column.order === 1 ? "#777" : "#bbb");
+        cg.select(".desc").attr("fill", _ => d.column === _.column && d.column.order === 2 ? "#777" : "#bbb");
     }
 
     _sortData(column) {
@@ -511,7 +599,7 @@ class SVGTable {
         else
             column.order = 1;
 
-        const index = this._dataIsArray ? this._columns.indexOf(column) : column.name;
+        const index = this._dataIsArray ? column.index : column.name;
 
         if (column.isNumber) {
             if (column.order === 0)
@@ -554,23 +642,25 @@ class SVGTable {
     }
 
     // base: number of fixed cells on the same row
-    _addCell(g, fill, tf, base, isHeader) {
+    _addCell(g, fill, base, isHeader, isFixed) {
         const style = this._style;
 
         const rect = g.append("rect")
-            .attr("width", (d, i) => this._columns[base + i].width)
+            .attr("width", d => d.column.width)
             .attr("height", this._cellHeight)
-            .attr("fill", fill)
+            .attr("fill", d => this._cellColor(d, fill, isHeader, isFixed))
             .attr("stroke-width", 0.1)
             .attr("stroke", style.border ? style.borderColor : fill);
+
+        if (this._heatmap && !(isHeader || isFixed)) rect.attr("opacity", 0.5);
 
         const t = g.append("text").attr("y", "1em").attr("dy", this._cellPaddingTop).attr("fill", style.textColor);
 
         if (isHeader) {
             if (!style.border)
                 g.append("line")
-                    .attr("x1", (d, i) => this._columns[base + i].width - 1).attr("y1", 5)
-                    .attr("x2", (d, i) => this._columns[base + i].width - 1).attr("y2", this._cellHeight - 5)
+                    .attr("x1", d => d.column.width - 1).attr("y1", 5)
+                    .attr("x2", d => d.column.width - 1).attr("y2", this._cellHeight - 5)
                     .attr("stroke", style.borderColor);
 
             this._arrow(g, base, "asc", "M 0 8 L 3 4 L 6 8");
@@ -578,20 +668,33 @@ class SVGTable {
 
             // Header cell
             t.attr("dx", this._cellPadding)
-                .attr("clip-path", (d, i) => this._clipPath(`headerClip${base + i}`))
-                .text(d => tf(d));
+                .attr("clip-path", d => this._clipPath(`headerClip${d.column.index}`))
+                .text(d => d.column.name);
         }
         else {
             t.attr("class", "value")
-                .attr("dx", (d, i) => this._columns[base + i].isNumber ? -this._cellPadding : this._cellPadding)
-                .attr("clip-path", (d, i) => this._clipPath(`cellClip${base + i}`))
-                .attr("transform", (d, i) => `translate(${this._columns[base + i].isNumber ? this._columns[base + i].width : 0},0)`)
-                .attr("text-anchor", (d, i) => this._columns[base + i].isNumber ? "end" : "start")
-                .text((d, i) => {
-                    const format = this._columns[base + i].format;
-                    return format ? d3.format(format)(tf(d)) : tf(d);
+                .attr("dx", d => d.column.isNumber ? -this._cellPadding : this._cellPadding)
+                .attr("clip-path", d => this._clipPath(`cellClip${d.column.index}`))
+                .attr("transform", d => `translate(${d.column.isNumber ? d.column.width : 0},0)`)
+                .attr("text-anchor", d => d.column.isNumber ? "end" : "start")
+                .text(d => {
+                    if (d.column.isNumber && d.column.format)
+                        return d3.format(d.column.format)(d.value);
+                    else
+                        return d.value;
                 });
         }
+    }
+
+    _cellColor(d, fill, isHeader, isFixed) {
+        if (this._heatmap) {
+            if (isHeader || isFixed || !d.column.isNumber)
+                return fill;
+            else
+                return this._heatmapColor(d.value);
+        }
+        else
+            return fill;
     }
 
     _arrow(g, base, name, path) {
@@ -599,7 +702,7 @@ class SVGTable {
             .attr("class", name)
             .attr("d", path)
             .attr("fill", "#bbb")
-            .attr("transform", (d, i) => `translate(${this._columns[base + i].width - this._cellPadding - 10},2)`);
+            .attr("transform", d => `translate(${d.column.width - this._cellPadding - 10},2)`);
     }
 
     _addScrollbars() {
