@@ -11,11 +11,13 @@ An SVG Table with sticky columns, rows and many other features.
 * **SVGTable(svg, [container])** - Constructs a new table with default settings. The container can be a svg or any g element, if it is not specified the container will be the svg itself.
 * **defaultColumnWidth(width)** - Sets the default column width and returns this table.
 * **cellHeight(height)** - Sets the cell height and returns this table.
-* **cellPadding(padding)** - Sets the cell padding and returns this table.
+* **cellPaddingH(padding)** - Sets the cell padding (left, right) and returns this table.
+* **cellPaddingV(padding)** - Sets the cell padding (top, bottom) and returns this table.
+* **autoSizeCell(auto)** - Specifies if the table should automatically calculate cell size according to its content and returns this table.
 * **fixedColumns(num)** - Sets the number of fixed (sticky) columns and returns this table.
 * **fixedRows(num)** - Sets the number of fixed (sticky) rows and returns this table. The number does not include the header row as it is always fixed.
 * **extent(extent)** - Sets the extent of the table to the specified bounds and returns this table. The extent bounds are specified as an array *[[x0, y0], [x1, y1]]*, where *x0* is the left side of the extent, *y0* is the top, *x1* is the right and *y1* is the bottom.
-* **size(size)** - Sets the table's dimensions to specified width and height and returns this table. The size is specified as an array *[width, height]*.
+* **size(size) ** - Sets the table's dimensions to specified width and height and returns this table. The size is specified as an array *[width, height]*.
 * **style(style)** - Overrides the default style and returns this table
   * style.**border** - a boolean value that determines the visibility of the border
   * style.**borderColor** - the color of border
@@ -48,9 +50,10 @@ An SVG Table with sticky columns, rows and many other features.
 * **onclick(e, cell)** - Occurs when clicks a cell.
 * **oncontextmenu(e, cell)** - Occurs when right clicks a cell.
 * ***ToDo***
-  * h-scroll by trackpad / mouse wheel
+  * ~~h-scroll by trackpad / mouse wheel~~
+  * ~~heatmap~~
   * reorder columns by drag-n-drop
-  * auto columnWidht and cellHeight
+  * ~~auto columnWidht and cellHeight~~
   * pagination
 
 ## Scrollbar

@@ -10,6 +10,7 @@
         .extent([[25, 25], [900, 400]])
         .fixedColumns(cols)
         .fixedRows(rows)
+        .autoSizeCell(true)
         .defaultColumnWidth(100)
         .defaultNumberFormat(",.0d")
         .style(style)
@@ -20,8 +21,7 @@
             chart(c);
             map(c);
         });
-
-    table.columns()[0].width = 160;
+    
     table.render();
 
     const chart = miniChart(svg, 50, 435, 600, 125);
