@@ -120,7 +120,7 @@
                         e.stopPropagation();
                     }
                     else if (e.srcElement === this._bar.node()) {
-                        const cbox = this._bar.node().getClientRects()[0];
+                        const cbox = this._bar.node().getBoundingClientRect();
 
                         var a, b, pos;
                         if (this._vertical) {
