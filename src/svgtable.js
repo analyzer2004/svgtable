@@ -111,7 +111,7 @@ class SVGTable {
             return this;
         }
         else
-            return this._heatmap;
+            return this._heatmap;                
     }
 
     heatmapPalette(_) {
@@ -124,7 +124,7 @@ class SVGTable {
             return this;
         }
         else
-            return this._heatmapPalette;
+            return this._heatmapPalette;                
     }
 
     data(_) {
@@ -480,7 +480,7 @@ class SVGTable {
     _updateHeatmap() {
         const bg = this._style.background;
         const rects = this._dataArea.selectAll("rect");
-        if (this._heatmap) {
+        if (this._heatmap) {                    
             rects.attr("fill", d => this._cellColor(d, bg, false, false));
             if (!this._style.border) rects.attr("stroke", d => this._cellColor(d, bg, false, false));
         }
@@ -643,7 +643,7 @@ class SVGTable {
 
     // base: number of fixed cells on the same row
     _addCell(g, fill, base, isHeader, isFixed) {
-        const style = this._style;
+        const style = this._style;                
 
         const rect = g.append("rect")
             .attr("width", d => d.column.width)
@@ -744,6 +744,7 @@ class SVGTable {
             sw = this._width - this._sumWidth(this._fixedColumns);
         this._xf = (tw - sw) / (sw - this._sliderLength);
 
+        this._minX = -(tw - this._width);
         this._minY = -((this._data.length - this._fixedRows) * this._cellHeight - this._height);
     }
 
@@ -760,8 +761,24 @@ class SVGTable {
                 y = this._fixedHeight;
 
             this._body.attr("transform", `translate(0,${y})`);
-            this._scrollbar.vertical.moveSlider(-(y - this._fixedHeight) / this._yf);
-            e.preventDefault();
+            this._scrollbar.vertical.moveSlider(-(y - this._fixedHeight) / this._yf);                    
         }
+
+        if (this._scrollbar.horizontal) {
+            const dx = e.wheelDeltaX;
+            if (dx) {
+                const cx = +this._dataArea.attr("transform").split(",")[0].substring(10);
+                var x = cx + dx;
+                if (x > this._fixedWidth)
+                    x = this._fixedWidth;
+                else if (x < this._minX)
+                    x = this._minX;
+
+                this._dataArea.attr("transform", `translate(${x},0)`);
+                this._dataHeader.attr("transform", `translate(${x - this._fixedWidth},0)`);
+                this._scrollbar.horizontal.moveSlider(-((x - this._fixedWidth) / this._xf));
+            }
+        }
+        e.preventDefault();
     }
 }
