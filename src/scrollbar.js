@@ -1,6 +1,7 @@
 ﻿class Scrollbar {
     constructor(svg) {
         this._svg = svg;
+        this._g = null;
         this._box = null;
         this._vertical = true;
         this._bar = null;
@@ -18,6 +19,7 @@
         this._deltac = 0;
 
         this._onscroll = null;
+        this._namespace = `eric.scrollbar.${Date.now() * Math.random()}`;
     }
 
     vertical(_) {
@@ -43,6 +45,14 @@
     attach() {
         this._render();
         this._attachEvents();
+    }
+
+    dispose() {
+        if (this._g) this._g.remove();
+        d3.select("body")
+            .on(`mousedown.${this._namespace}`, null)
+            .on(`mouseup.${this._namespace}`, null)
+            .on(`mousemove.${this._namespace}`, null);
     }
 
     moveSlider(pos) {
@@ -77,6 +87,8 @@
             .attr("width", this._sliderWidth)
             .attr("height", this._sliderLength)
             .attr("fill", "#ccc");
+
+        this._g = g;
     }
 
     _renderHBar() {
@@ -95,15 +107,16 @@
             .attr("width", this._sliderLength)
             .attr("height", this._sliderWidth)
             .attr("fill", "#ccc");
+
+        this._g = g;
     }
 
     _attachEvents(tbox) {
-        const box = this._box,
-            namespace = `eric.scrollbar.${Date.now() * Math.random()}`;
+        const box = this._box;
 
         //this._svg
         d3.select("body")
-            .on(`mousedown.${namespace}`, e => {
+            .on(`mousedown.${this._namespace}`, e => {
                 if (e.buttons === 1) {
                     const p = d3.pointer(e);
                     if (e.srcElement === this._slider.node()) {
@@ -124,7 +137,7 @@
 
                         var a, b, pos;
                         if (this._vertical) {
-                            a = pos = +this._slider.attr("y");                            
+                            a = pos = +this._slider.attr("y");
                             b = p[1] - cbox.y;
                         }
                         else {
@@ -151,7 +164,7 @@
                     }
                 }
             })
-            .on(`mouseup.${namespace}`, () => {
+            .on(`mouseup.${this._namespace}`, () => {
                 if (this._sliderTimer) clearTimeout(this._sliderTimer);
                 const steps = this._sliderSteps;
                 if (steps && steps.length > 0) {
@@ -162,7 +175,7 @@
                 this._grabbing = false;
                 this._slider.attr("fill", "#ccc");
             })
-            .on(`mousemove.${namespace}`, e => {
+            .on(`mousemove.${this._namespace}`, e => {
                 const box = this._box;
 
                 if (this._grabbing) {

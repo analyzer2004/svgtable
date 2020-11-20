@@ -5,6 +5,7 @@ class SVGTable {
         this._svg = svg;
         this._container = container || svg;
         this._g = null;
+        this._charBox = { x: 0, y: 0, width: 0, height: 0 };
 
         this._autoSizeCell = true;
         this._defaultColumnWidth = 100;
@@ -19,6 +20,8 @@ class SVGTable {
         this._top = 0;
         this._width = 400;
         this._height = 300;
+        this._widthA = 0;
+        this._heightA = 0;
         this._sliderWidth = 13;
         this._sliderLength = 50;
 
@@ -29,6 +32,7 @@ class SVGTable {
         this._fixedHeight = 0;
 
         this._data = null;
+        this._fullData = null;
         this._dataIsArray = false;
         this._columns = null;
         this._defaultNumberFormat = "$,.2f";
@@ -36,6 +40,15 @@ class SVGTable {
         this._heatmap = false;
         this._heatmapPalette = null; // interpolator or array of colors
         this._heatmapColor = null;
+
+        this._paginator = null;
+        this._paginatorPos = "top";
+        this._rowCount = 0;
+        this._currPageNum = 0;
+        this._rowsPerPage = 50;
+        this._beginIndex = 0;
+        this._endIndex = 49;
+        this._rowsPerPageSelections = [25, 50, 75];
 
         this._scrollbar = {
             horizontal: null,
@@ -61,6 +74,8 @@ class SVGTable {
         this._dataHeader = null;
 
         this._focus = null;
+        this._onsort = null;
+        this._onchangepage = null;
         this._onhighlight = null;
         this._onclick = null;
         this._oncontextmenu = null;
@@ -94,6 +109,14 @@ class SVGTable {
 
     fixedRows(_) {
         return arguments.length ? (this._fixedRows = +_, this) : this._fixedRows;
+    }
+
+    rowsPerPage(_) {
+        return arguments.length ? (this._rowsPerPage = +_, this) : this._rowsPerPage;
+    }
+
+    rowsPerPageSelections(_) {
+        return arguments.length ? (this._rowsPerPageSelections = _, this) : this._rowsPerPageSelections;
     }
 
     extent(_) {
@@ -152,6 +175,14 @@ class SVGTable {
         return arguments.length ? (this._defaultNumberFormat = _, this) : this._defaultNumberFormat;
     }
 
+    onsort(_) {
+        return arguments.length ? (this._onsort = _, this) : this._onsort;
+    }
+
+    onchangepage(_) {
+        return arguments.length ? (this._onchangepage = _, this) : this._onchangepage;
+    }
+
     onhighlight(_) {
         return arguments.length ? (this._onhighlight = _, this) : this._onhighlight;
     }
@@ -170,6 +201,7 @@ class SVGTable {
         }
         else {
             this._init();
+            this._initPaginator();
             this._processColumns();
             this._prepare();
 
@@ -181,6 +213,7 @@ class SVGTable {
             this._renderBody(this._table);
             this._renderHeader(this._table);
             this._addScrollbars();
+            if (this._paginator) this._paginator.render();
         }
         return this;
     }
@@ -194,9 +227,98 @@ class SVGTable {
         return this._data.map(_ => _[c.name]);
     }
 
+    get g() { return this._g; }
+
+    get svg() { return this._svg; }
+
     _init() {
         this._g = this._container.append("g");
         this._cellHeightA = this._cellHeight + this._cellPaddingV * 2;
+        this._charBox = this._getBBox("Z");
+
+        this._widthA = this._width;
+        this._heightA = this._height;
+    }
+
+    _initPaginator() {
+        if (this._data.length > this._rowsPerPage) {
+            this._fullData = this._data;
+            this._rowCount = this._fullData.length;
+            this._data = this._fullData.slice(0, this._rowsPerPage);
+            this._calcPageRange(1, 0);
+
+            const pr = new Paginator(this);
+            const ptop = this._top, ph = this._charBox.height + pr.buttonPadding() / 2 + 3; //3: margin
+            this._top += ph;
+            this._height -= ph;
+            // bottom
+            // this._height -= ph - 5;
+            // ptop = this._height + this._top + 5;
+
+            pr.init(this._rowsPerPage, this._rowCount)
+                .options({
+                    position: "top",
+                    selector: "right",
+                    buttonColor: this._style.headerBackground
+                })
+                .position([this._left, ptop])
+                .recordsPerPageSelections(this._rowsPerPageSelections)
+                .onPageNumberChange((pnum, begin, end) => {
+                    this._currPageNum = pnum;
+                    this._calcPageRange(pnum, begin);
+                    this._pageData();
+                    this._rerender();
+                    if (this._onchangepage) this._onchangepage(this._beginIndex);
+                })
+                .onRecordsPerPageChange((rpp, pnum, begin, end) => {
+                    this._rowsPerPage = rpp;
+                    this._currPageNum = pnum;
+                    this._calcPageRange(pnum, begin);
+                    this._pageData();
+                    this._rerender();
+                    if (this._onchangepage) this._onchangepage(this._beginIndex);
+                });
+
+            this._paginator = pr;
+        }
+    }
+
+    _calcPageRange(pnum, begin) {
+        if (pnum === 1) this._beginIndex = this._fixedRows;
+        else this._beginIndex = begin - (pnum - 2) * this._fixedRows;
+
+        this._endIndex = this._beginIndex + this._rowsPerPage - this._fixedRows;
+    }
+
+    _pageData() {
+        this._data = this._fullData.slice(0, this._fixedRows)
+            .concat(this._fullData.slice(this._beginIndex, this._endIndex));
+    }
+
+    _rerender() {
+        this._g.selectAll("clipPath").remove();
+        if (this._table) this._table.remove();
+        if (this._scrollbar.horizontal) this._scrollbar.horizontal.dispose();
+        if (this._scrollbar.vertical) this._scrollbar.vertical.dispose();
+
+        this._focus = null;
+        this._height = this._heightA;
+        this._width = this._widthA;
+        this._scrollbar.visible = [true, true];
+
+        const ph = this._charBox.height + this._paginator.buttonPadding() / 2;
+        this._height -= ph;
+
+        this._processColumns();
+        this._prepare();
+
+        this._calcConstrains();
+        this._createClipPaths();
+
+        this._createTable();
+        this._renderBody(this._table);
+        this._renderHeader(this._table);
+        this._addScrollbars();
     }
 
     _validate() {
@@ -210,17 +332,20 @@ class SVGTable {
         const h = this._data.length * this._cellHeightA;
 
         if (w + this._sliderWidth < this._width) {
-            this._width = w + this._sliderWidth;
+            this._width = w;
             this._scrollbar.visible[0] = false;
+        }
+        else {
+            this._width -= this._sliderWidth;
         }
 
         if (h + this._sliderWidth + this._cellHeightA < this._height) {
-            this._height = h + this._sliderWidth + this._cellHeightA;
+            this._height = h + this._cellHeightA; // includes header
             this._scrollbar.visible[1] = false;
         }
-
-        this._width -= this._sliderWidth;
-        this._height -= this._sliderWidth;
+        else {
+            this._height -= this._sliderWidth;
+        }
     }
 
     _sumWidth(n) {
@@ -284,13 +409,12 @@ class SVGTable {
     }
 
     _calcSize() {
-        const charBox = this._getBBox("Z");
         // test if it is used in a generator
-        if (charBox.width > 0 && charBox.height > 0) {
+        if (this._charBox.width > 0 && this._charBox.height > 0) {
 
             // overrides cellHeight
-            this._cellHeight = charBox.height;
-            this._cellHeightA = charBox.height + this._cellPaddingV * 2;
+            this._cellHeight = this._charBox.height;
+            this._cellHeightA = this._charBox.height + this._cellPaddingV * 2;
 
             // prepare keys
             const keys = [];
@@ -305,8 +429,11 @@ class SVGTable {
                 const row = this._data[i];
                 for (let j = 0; j < keys.length; j++) {
                     const key = keys[j], column = this._columns[j];
-                    const curr = column.isNumber && column.format ? d3.format(column.format)(row[key]) : row[key];
-                    if (curr.length > longest[j].length) longest[j] = curr;
+                    const val = row[key];
+                    if (val) {
+                        const curr = column.isNumber && column.format ? d3.format(column.format)(val) : val;
+                        if (curr.length > longest[j].length) longest[j] = curr;
+                    }
                 }
             }
 
@@ -335,7 +462,8 @@ class SVGTable {
     _processHeatmap() {
         if (!this._heatmapPalette) return;
 
-        const all = this._data.slice(this._fixedRows).flatMap(d => {
+        const data = this._fullData || this._data;
+        const all = data.slice(this._fixedRows).flatMap(d => {
             const r = this._dataIsArray ?
                 d.slice(this._fixedColumns) :
                 Object.keys(d).map(k => d[k]).slice(this._fixedColumns);
@@ -634,15 +762,26 @@ class SVGTable {
 
     _sort(d) {
         const sorted = this._sortData(d.column);
-        const f = 250 / sorted.length;
-        this._table.selectAll(".row")
-            .transition()
-            .duration((d, i) => i * f)
-            .ease(d3.easeBounce)
-            .attr("transform", d => {
-                const i = Array.isArray(d) && d[0].origin !== undefined ? sorted.indexOf(d[0].origin) : sorted.indexOf(d);
-                return `translate(0,${i * this._cellHeightA})`;
-            });
+
+        if (this._paginator && this._fullData.length > this._rowsPerPage) {
+            const x = this._getX(), y = this._getY();
+            this._pageData();
+            this._rerender();
+            this._moveX(x);
+            this._moveY(y);
+            if (this._onsort) this._onsort(d.column, this._paginator !== null);
+        }
+        else {
+            const f = 250 / sorted.length;
+            this._table.selectAll(".row")
+                .transition()
+                .duration((d, i) => i * f)
+                .ease(d3.easeBounce)
+                .attr("transform", d => {
+                    const i = Array.isArray(d) && d[0].origin !== undefined ? sorted.indexOf(d[0].origin) : sorted.indexOf(d);
+                    return `translate(0,${i * this._cellHeightA})`;
+                });
+        }
 
         const cg = this._header.selectAll(".column");
         cg.select(".asc").attr("fill", _ => d.column === _.column && d.column.order === 1 ? "#777" : "#bbb");
@@ -650,7 +789,19 @@ class SVGTable {
     }
 
     _sortData(column) {
-        var sorted = [...this._data].slice(this._fixedRows);
+        //var sorted = [...this._data].slice(this._fixedRows);
+        var fixed, sorted;
+        if (this._paginator) {
+            if (this._fixedRows > 0) {
+                fixed = this._fullData.slice(0, this._fixedRows);
+                sorted = this._fullData.slice(this._fixedRows);
+            }
+            else
+                sorted = this._fullData;
+        }
+        else {
+            sorted = [...this._data].slice(this._fixedRows);
+        }
 
         this._columns.resetOrder(column);
         if (column.order === 0)
@@ -662,23 +813,23 @@ class SVGTable {
 
         const index = this._dataIsArray ? column.index : column.name;
 
-        if (column.isNumber) {
-            if (column.order === 0)
-                sorted.sort((a, b) => -1);
-            else if (column.order === 1)
+        if (column.order === 0) {
+            sorted.sort((a, b) => -1);
+        }
+        else if (column.isNumber) {
+            if (column.order === 1)
                 sorted.sort((a, b) => a[index] - b[index]);
             else
                 sorted.sort((a, b) => b[index] - a[index]);
-
         }
         else {
-            if (column.order === 0)
-                sorted.sort((a, b) => -1);
-            else if (column.order === 1)
+            if (column.order === 1)
                 sorted.sort((a, b) => a[index].localeCompare(b[index]));
             else
                 sorted.sort((a, b) => b[index].localeCompare(a[index]));
         }
+
+        if (fixed) this._fullData = fixed.concat(sorted);
 
         return sorted;
     }
@@ -814,32 +965,41 @@ class SVGTable {
             const dy = e.wheelDeltaY ? e.wheelDeltaY : e.wheelDelta ? e.wheelDelta : -1;
             if (dy === -1) return;
 
-            const cy = +this._body.attr("transform").split(",")[1].replace(")", "");
+            const cy = this._getY();
             var y = cy + dy;
-            if (y < this._minY)
-                y = this._minY;
-            else if (y > this._fixedHeight)
-                y = this._fixedHeight;
-
-            this._body.attr("transform", `translate(0,${y})`);
-            this._scrollbar.vertical.moveSlider(-(y - this._fixedHeight) / this._yf);
+            this._moveY(y);
         }
 
         if (this._scrollbar.horizontal) {
             const dx = e.wheelDeltaX;
             if (dx) {
-                const cx = +this._dataArea.attr("transform").split(",")[0].substring(10);
+                const cx = this._getX();
                 var x = cx + dx;
-                if (x > this._fixedWidth)
-                    x = this._fixedWidth;
-                else if (x < this._minX)
-                    x = this._minX;
-
-                this._dataArea.attr("transform", `translate(${x},0)`);
-                this._dataHeader.attr("transform", `translate(${x - this._fixedWidth},0)`);
-                this._scrollbar.horizontal.moveSlider(-((x - this._fixedWidth) / this._xf));
+                this._moveX(x);
             }
         }
         e.preventDefault();
+    }
+
+    _getX() { return +this._dataArea.attr("transform").split(",")[0].substring(10); }
+    _getY() { return +this._body.attr("transform").split(",")[1].replace(")", ""); }
+
+    _moveX(x) {
+        if (x > this._fixedWidth) x = this._fixedWidth;
+        else if (x < this._minX) x = this._minX;
+
+        this._dataArea.attr("transform", `translate(${x},0)`);
+        this._dataHeader.attr("transform", `translate(${x - this._fixedWidth},0)`);
+        if (this._scrollbar.horizontal)
+            this._scrollbar.horizontal.moveSlider(-((x - this._fixedWidth) / this._xf));
+    }
+
+    _moveY(y) {
+        if (y < this._minY) y = this._minY;
+        else if (y > this._fixedHeight) y = this._fixedHeight;
+
+        this._body.attr("transform", `translate(0,${y})`);
+        if (this._scrollbar.vertical)
+            this._scrollbar.vertical.moveSlider(-(y - this._fixedHeight) / this._yf);
     }
 }

@@ -17,7 +17,9 @@ An SVG Table with sticky columns, rows and many other features.
 * **fixedColumns(num)** - Sets the number of fixed (sticky) columns and returns this table.
 * **fixedRows(num)** - Sets the number of fixed (sticky) rows and returns this table. The number does not include the header row as it is always fixed.
 * **extent(extent)** - Sets the extent of the table to the specified bounds and returns this table. The extent bounds are specified as an array *[[x0, y0], [x1, y1]]*, where *x0* is the left side of the extent, *y0* is the top, *x1* is the right and *y1* is the bottom.
-* **size(size) ** - Sets the table's dimensions to specified width and height and returns this table. The size is specified as an array *[width, height]*.
+* **size(size)** - Sets the table's dimensions to specified width and height and returns this table. The size is specified as an array *[width, height]*.
+* **rowsPerPage(num)** - Sets the number of rows per page and returns this table. The paginator shows up if the data is longer than this number.
+* **rowsPerPageSelections(selections)** - Sets the available choices of rows per page and returns this table. The selections are specified as an array, default selections are [25, 50, 75]. 
 * **style(style)** - Overrides the default style and returns this table
   * style.**border** - a boolean value that determines the visibility of the border
   * style.**borderColor** - the color of border
@@ -49,12 +51,13 @@ An SVG Table with sticky columns, rows and many other features.
   * context.**getColumn()**: returns value of all the cells of the row based on highlighted cell
 * **onclick(e, cell)** - Occurs when clicks a cell.
 * **oncontextmenu(e, cell)** - Occurs when right clicks a cell.
-* ***ToDo***
+* **onchangepage(begin)** Occurs when user changes the current page by clicking the paginator. The begin parameter is the index of the beginning row of current page.
+* *** ToDo ***
   * ~~h-scroll by trackpad / mouse wheel~~
   * ~~heatmap~~
   * reorder columns by drag-n-drop
   * ~~auto columnWidht and cellHeight~~
-  * pagination
+  * ~~pagination~~
 
 ## Scrollbar
 The Scrollbar is an accessory of the SVGTable, it can also be used independently as a general-purpose scrollbar.
@@ -70,3 +73,6 @@ The Scrollbar is an accessory of the SVGTable, it can also be used independently
   * **pos**: the x or y (depends on the orientation) of the mouse pointer
   * **edge**: the left or top (depends on the orientation) of the slider
   * **delta**: the distance between pointer and the center of the slider
+
+## Paginator
+An accessory of the SVGTable
