@@ -1,4 +1,4 @@
-# SVG Table
+# SVG DataGrid
 
 An SVG Table with sticky columns, rows and many other features.
 
